@@ -1,5 +1,6 @@
 import {SVGElementType} from '../Meta/SVGElementType';
 import {SelectedTool} from '../Main'
+import UpdateHandler from './UpdateHandler';
 
 const PathAttribs: Array<string> =  ["d"]
 const CircleAttribs: Array<string> =  ["cx", "cx", "r"]
@@ -63,11 +64,7 @@ createHoverableElement (svgType: SVGElementType, id: string, data: any): Element
         element.setAttribute(attrib, data[attrib]);
     }
 
-    switch (svgType) {
-        case SVGElementType.Path:
-            element.setAttribute("stroke-width", "10");
-            break;
-    }
+    UpdateHandler.updateHoverableElement(svgType, element);
 
     element.addEventListener("mouseover", () => {
         let main_element = document.getElementById(`#${id}`);
