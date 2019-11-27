@@ -8,5 +8,5 @@ export default interface Point {
 }
 
 export function createPoint (x: number, y: number): Point {
-    return {id: makeid(5), x, y};
+    return {id: makeid(10), x, y};
 }

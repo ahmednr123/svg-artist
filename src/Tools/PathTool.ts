@@ -176,7 +176,7 @@ class PathHandler {
     private static 
     createPath (): Path 
     {
-        return {id: makeid(5), root: null, points: {}, curve_points: {}};
+        return {id: makeid(10), root: null, points: {}, curve_points: {}};
     }
 }
 
