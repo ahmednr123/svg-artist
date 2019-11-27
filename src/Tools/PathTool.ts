@@ -1,4 +1,5 @@
-import Point from '../Meta/Point';
+import Point, { createPoint } from '../Meta/Point';
+import {makeid} from '../Utils/GeneralUtils';
 
 enum PathActionType {
     Move = "M",
@@ -22,6 +23,8 @@ interface PathActionFragment {
 }
 
 export default class PathTool {
+    static ActivePath: Path = null;
+
     static init () {
         document.addEventListener("mousedown", this.onMouseDown);
         document.addEventListener("mousemove", this.onMouseMove);
@@ -38,17 +41,22 @@ export default class PathTool {
 
     }
 
-    private static onMouseDown (ev: MouseEvent) {
+    static onMouseDown (ev: MouseEvent) {
         if (ev.which == 1) {
-
+            let point: Point = createPoint(ev.clientX, ev.clientY);
+            if (this.ActivePath == null) {
+                this.ActivePath = PathHandler.create(point);
+            } else {
+                PathHandler.add(this.ActivePath, point);
+            }
         }
     }
 
-    private static onMouseMove (ev: MouseEvent) {
+    static onMouseMove (ev: MouseEvent) {
 
     }
 
-    private static onMouseUp (ev: MouseEvent) {
+    static onMouseUp (ev: MouseEvent) {
 
     }
 }
@@ -56,7 +64,7 @@ export default class PathTool {
 class PathHandler {
     static Paths: {[key: string]: Path} = {};
 
-    static create (point: Point): string {
+    static create (point: Point): Path {
         let path: Path = this.createPath();
         path.root = this.createActionFragment(PathActionType.Move, [point]);
         path.points[point.id] = point;
@@ -64,25 +72,20 @@ class PathHandler {
 
         this.Paths[path.id] = path;
 
-        return path.id;
+        return path;
     }
 
-    static add (id: string, point: Point) {
-        if (!(id in this.Paths)) {
-            console.error(`Path [id="${id}"] Not Found!`);
-            return;
-        }
-
+    static add (path: Path, point: Point) {
         let action = PathActionType.Line;
         let point_arr = [point];
 
-        let temp = this.Paths[id].root;
+        let temp = path.root;
         while (temp.next != null)
             temp = temp.next;
 
         let prev_point = this.getPoint(temp);
-        let curve_point = this.Paths[id].curve_points[point.id];
-        let prev_curve_point = this.Paths[id].curve_points[prev_point.id];
+        let curve_point = path.curve_points[point.id];
+        let prev_curve_point = path.curve_points[prev_point.id];
         if (prev_curve_point.active) {
             if (temp.action == PathActionType.Move) {
                 action = PathActionType.Curve;
@@ -94,8 +97,8 @@ class PathHandler {
             } else if (temp.action == PathActionType.Line) {
                 let temp_point_id = temp.point_arr[0].id;
                 temp.action = PathActionType.Curve;
-                temp.point_arr.unshift(this.Paths[id].curve_points[temp_point_id])
-                temp.point_arr.unshift(this.Paths[id].curve_points[this.getPoint(temp.prev).id])
+                temp.point_arr.unshift(path.curve_points[temp_point_id])
+                temp.point_arr.unshift(path.curve_points[this.getPoint(temp.prev).id])
                 
                 action = PathActionType.Smooth;
                 point_arr.unshift(curve_point);
@@ -107,10 +110,38 @@ class PathHandler {
         temp.next = ac_fragment;
     }
 
-    static getSVG (path_id: string): string {
+    static update (path_id: string, point: Point) {
+        let path = this.Paths[path_id];
+
+        if (point.id.charAt(1) == ':') {
+            let curve_point_type = point.id.split(':')[0];
+            let curve_point_id = point.id.split(':')[1];
+            
+            if (curve_point_type == 'A') {
+                path.curve_points[curve_point_id].x = point.x;
+                path.curve_points[curve_point_id].y = point.y;
+            } else if (curve_point_type == 'B') {
+                let base_point = path.points[curve_point_id];
+                let mirror_point = getMirrorPoint(base_point, point);
+
+                path.curve_points[curve_point_id].x = mirror_point.x;
+                path.curve_points[curve_point_id].y = mirror_point.y;
+            }
+        } else {
+            let diff_point: Point = {x: point.x - path.points[point.id].x, y: point.y - path.points[point.id].y};
+
+            path.points[point.id].x = point.x;
+            path.points[point.id].y = point.y;
+
+            path.curve_points[point.id].x += diff_point.x;
+            path.curve_points[point.id].y += diff_point.y;
+        }
+    }
+
+    static getSVG (path: Path): string {
         let path_data = ""
 
-        let temp = this.Paths[path_id].root;
+        let temp = path.root;
         while (temp != null) {
             path_data += temp.action + " ";
             for (let point of temp.point_arr)
@@ -119,7 +150,7 @@ class PathHandler {
             temp = temp.next;
         }
 
-        return `<path id="${path_id}" d="${path_data}" stroke="black" fill="none"/>`;
+        return `<path id="${path.id}" d="${path_data}" stroke="black" fill="none"/>`;
     }
 
     private static 
@@ -149,16 +180,11 @@ class PathHandler {
     }
 }
 
-function makeid (length: number): string {
-    var result          =   '';
-    var characters      =   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    var onlyCharacters  =   '_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+function getMirrorPoint (base_point: Point, point: Point): Point {
+    let mirror_point: Point = {x:null, y:null}
 
-    result += onlyCharacters.charAt(Math.floor(Math.random() * onlyCharacters.length));
+    mirror_point.x = 2 * base_point.x - point.x;
+    mirror_point.y = 2 * base_point.y - point.y;
 
-    for ( var i = 0; i < length-1; i++ ) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-
-    return result;
+    return mirror_point;
 }
