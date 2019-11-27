@@ -1,3 +1,4 @@
 import PathTool from './Tools/PathTool';
+import Tool from './Tools/Tool'
 
-PathTool.init()
+export let SelectedTool: Tool = PathTool.getInstance();

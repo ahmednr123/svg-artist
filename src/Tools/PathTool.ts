@@ -1,5 +1,8 @@
 import Point, { createPoint } from '../Meta/Point';
 import {makeid} from '../Utils/GeneralUtils';
+import Tool from './Tool'
+import UpdateHandler from '../Utils/UpdateHandler';
+import { SVGElementType } from '../Meta/SVGElementType';
 
 enum PathActionType {
     Move = "M",
@@ -12,7 +15,8 @@ interface Path {
     id: string,
     root: PathActionFragment,
     points: {[point_id:string]: Point},
-    curve_points: {[point_id:string]: Point}
+    curve_points: {[point_id:string]: Point},
+    attribs: {[key:string]:string}
 }
 
 interface PathActionFragment {
@@ -22,26 +26,46 @@ interface PathActionFragment {
     prev: PathActionFragment
 }
 
-export default class PathTool {
-    static ActivePath: Path = null;
+export default class PathTool implements Tool {
+    private static instance: PathTool;
 
-    static init () {
-        document.addEventListener("mousedown", this.onMouseDown);
-        document.addEventListener("mousemove", this.onMouseMove);
-        document.addEventListener("mouseup", this.onMouseUp);
+    private static ActivePath: Path = null;
+
+    private constructor() {}
+    
+    public static getInstance(): PathTool {
+        if (!PathTool.instance) {
+            PathTool.instance = new PathTool();
+        }
+
+        return PathTool.instance;
     }
 
-    static destroy () {
-        document.removeEventListener("mousedown", this.onMouseDown);
-        document.removeEventListener("mousemove", this.onMouseMove);
-        document.removeEventListener("mouseup", this.onMouseUp);
+    public init () {
+        document.addEventListener("mousedown", PathTool.onMouseDown);
+        document.addEventListener("mousemove", PathTool.onMouseMove);
+        document.addEventListener("mouseup", PathTool.onMouseUp);
     }
 
-    static onSelect (id: string) {
+    public destroy () {
+        document.removeEventListener("mousedown", PathTool.onMouseDown);
+        document.removeEventListener("mousemove", PathTool.onMouseMove);
+        document.removeEventListener("mouseup", PathTool.onMouseUp);
+    }
+
+    public getAttribute (path_id: string, attribute: string): string {
+        return PathHandler.Paths[path_id].attribs[attribute];
+    }
+
+    public onSelect (id: string) {
 
     }
 
-    static onMouseDown (ev: MouseEvent) {
+    public deSelect (id: string) {
+
+    }
+
+    public static onMouseDown (ev: MouseEvent) {
         if (ev.which == 1) {
             let point: Point = createPoint(ev.clientX, ev.clientY);
             if (this.ActivePath == null) {
@@ -52,11 +76,11 @@ export default class PathTool {
         }
     }
 
-    static onMouseMove (ev: MouseEvent) {
+    public static onMouseMove (ev: MouseEvent) {
 
     }
 
-    static onMouseUp (ev: MouseEvent) {
+    public static onMouseUp (ev: MouseEvent) {
 
     }
 }
@@ -68,7 +92,9 @@ class PathHandler {
         let path: Path = this.createPath();
         path.root = this.createActionFragment(PathActionType.Move, [point]);
         path.points[point.id] = point;
-        path.curve_points[point.id] = {id: point.id, active: false, x: point.x, y: point.y}; // THIS IS DONE TO AVOID POITING TO THE point OBJECT
+
+        // THIS IS DONE TO AVOID POITING TO THE point OBJECT [Object Copy]
+        path.curve_points[point.id] = {id: point.id, active: false, x: point.x, y: point.y};
 
         this.Paths[path.id] = path;
 
@@ -136,21 +162,26 @@ class PathHandler {
             path.curve_points[point.id].x += diff_point.x;
             path.curve_points[point.id].y += diff_point.y;
         }
+
+        UpdateHandler.update(SVGElementType.Path, path_id, PathHandler.getAttribs(path));
     }
 
-    static getSVG (path: Path): string {
-        let path_data = ""
+    static getAttribs (path: Path): {[key: string]:string} {
+        let attribs: {[key: string]:string} = {}
+        attribs.d = ""
 
         let temp = path.root;
         while (temp != null) {
-            path_data += temp.action + " ";
+            attribs.d += temp.action + " ";
             for (let point of temp.point_arr)
-                path_data += `${point.x} ${point.y}, `;
+            attribs.d += `${point.x} ${point.y}, `;
             
             temp = temp.next;
         }
 
-        return `<path id="${path.id}" d="${path_data}" stroke="black" fill="none"/>`;
+        attribs = concat(attribs, path.attribs);
+
+        return attribs;
     }
 
     private static 
@@ -176,7 +207,7 @@ class PathHandler {
     private static 
     createPath (): Path 
     {
-        return {id: makeid(10), root: null, points: {}, curve_points: {}};
+        return {id: makeid(10), root: null, points: {}, curve_points: {}, attribs: {stroke:"black"}};
     }
 }
 
@@ -187,4 +218,12 @@ function getMirrorPoint (base_point: Point, point: Point): Point {
     mirror_point.y = 2 * base_point.y - point.y;
 
     return mirror_point;
+}
+
+function concat(object1: {[key: string]:string}, object2: {[key: string]:string}) {
+    for (var key in object2) {
+        object1[key] = object2[key];
+    }
+
+    return object1;
 }
